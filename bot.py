@@ -8,6 +8,7 @@ from nltk.tokenize import word_tokenize
 import string
 from pprint import pprint
 
+
 PUSHSHIFT_URL = "https://apiv2.pushshift.io/reddit"
 SUBREDDIT = "news"
 TYPE = "comment"
@@ -36,8 +37,13 @@ def fetchObjects():
     if r.status_code == 200:
         response = json.loads(r.text)
         data = response['data']
-        sorted_data = sorted(data, reverse=True, key=lambda x: x['created_utc'])
-        return sorted_data
+        sorted_data = sorted(data, reverse=False, key=lambda x: x['created_utc'])
+        sorted_data_by_id = sorted(data, key=lambda x: int(x['id'],36))
+        #print(json.dumps(data,indent=4,sort_keys=True))
+        #print('DATA\n\n\nSORTEDDATA')
+        #print(json.dumps(sorted_data,indent=4,sort_keys=True))
+        #print('END OF SORTED DATA\n\n\n\n\n\n')
+        return sorted_data_by_id
 
 def process():
     max_created_utc = 0
@@ -46,6 +52,7 @@ def process():
     while 1:
         nothing_processed = True
         objects = fetchObjects()
+        count = 0
         for object in objects:
             id = int(object['id'],36)
             if id > max_id:
@@ -54,15 +61,16 @@ def process():
                 max_id = id
                 if created_utc > max_created_utc:
                     max_created_utc = created_utc
+                    count += 1
                     process_comment(object)
                     # Code to do something with comment goes here ...
-        if nothing_processed: return
+        #if nothing_processed: return
         max_created_utc -= 1
-        time.sleep(.5)
+        print('Last run had ' + str(count) + ' comments processed')
+        time.sleep(5)
 
 
 def process_comment(comment):
-    pprint(comment)
     score = comment['score']
     text = comment['body'].lower()
     silvers = comment['gildings']['gid_1']
@@ -71,20 +79,18 @@ def process_comment(comment):
     gilds = silvers + golds + platinums
     if(text == '[removed]'):
         return
-    print(text)
     tokens = tokenize_string(text)
-    print('\n\n')
-    print(tokens)
-    '''
+
     for token in tokens:
-        cursor.execute('SELECT * FROM news_comments WHERE word = ?', token)
+        #print(token)
+        cursor.execute('SELECT * FROM news_comments WHERE word = ?', (token,))
         entry = cursor.fetchone()
         if entry is None: #if fetch is empty then need to add entry
             cursor.execute('INSERT INTO news_comments (word, score, silvers, golds, platinums, gilds, total) VALUES (?,?,?,?,?,?,?)', (token, score, silvers, golds, platinums, gilds, 1))
         else: #entry exists, modify it
-            pprint(entry)
+            #pprint(entry)
             cursor.execute('REPLACE INTO news_comments(word, score, silvers, golds, platinums, gilds, total) VALUES(?,?,?,?,?,?,?)', (token, score + entry[1], silvers + entry[2], golds + entry[3], platinums + entry[4], gilds + entry[5], entry[6] + 1))
-    '''
+
 
 def tokenize_string(text):
     word_tokenized_text = word_tokenize(text)
